@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import {
   buildInstagramProfileUrl,
   normalizeInstagramUsername,
+  parseInstagramUpload,
 } from "../lib/instagram-parser.ts";
 
 const usernameCases = [
@@ -44,6 +45,69 @@ assert.equal(
   buildInstagramProfileUrl("https://www.instagram.com/_u/Example_User/"),
   "https://www.instagram.com/example_user/",
   "profile URLs are rebuilt from the normalized username",
+);
+
+const followersPayload = JSON.stringify([
+  {
+    string_list_data: [
+      {
+        href: "https://www.instagram.com/_u/Example_User/",
+        value: "Example_User",
+        timestamp: 1710000000,
+      },
+    ],
+  },
+]);
+
+const followingPayload = JSON.stringify({
+  relationships_following: [
+    {
+      string_list_data: [
+        {
+          href: "https://www.instagram.com/accounts/profile/Another.User/",
+          value: "Another.User",
+          timestamp: 1710000001,
+        },
+      ],
+    },
+  ],
+});
+
+const parsed = await parseInstagramUpload([
+  new File([followersPayload], "followers_1.json", {
+    type: "application/json",
+  }),
+  new File([followingPayload], "following.json", {
+    type: "application/json",
+  }),
+]);
+
+assert.deepEqual(
+  parsed.analysis.followers.map((account) => ({
+    username: account.username,
+    href: account.href,
+  })),
+  [
+    {
+      username: "example_user",
+      href: "https://www.instagram.com/example_user/",
+    },
+  ],
+  "followers payload keeps normalized usernames and profile links",
+);
+
+assert.deepEqual(
+  parsed.analysis.following.map((account) => ({
+    username: account.username,
+    href: account.href,
+  })),
+  [
+    {
+      username: "another.user",
+      href: "https://www.instagram.com/another.user/",
+    },
+  ],
+  "following payload keeps normalized usernames and profile links",
 );
 
 console.log("Instagram username normalization checks passed.");
