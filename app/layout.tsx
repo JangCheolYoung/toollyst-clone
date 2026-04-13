@@ -15,7 +15,7 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "FollowScope",
   description:
-    "인스타그램 내보내기 파일을 브라우저에서 분석해 맞팔 현황을 빠르게 확인하는 프라이버시 중심 도구",
+    "인스타그램 export ZIP 또는 JSON을 브라우저에서 분석해 맞팔 현황을 빠르게 확인하는 프라이버시 중심 도구",
 };
 
 export default function RootLayout({
