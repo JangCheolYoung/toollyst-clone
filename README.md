@@ -46,6 +46,12 @@ npm run typecheck
 npm run build
 ```
 
+## Live Demo
+
+After GitHub Pages deployment is active, the app is served at:
+
+`https://jangcheolyoung.github.io/toollyst-clone/`
+
 ## Privacy Model
 
 - Analysis happens client-side in the browser session.
