@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:instagram-links": "node --experimental-strip-types scripts/verify-instagram-normalization.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2",

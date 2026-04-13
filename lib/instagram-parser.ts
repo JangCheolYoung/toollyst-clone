@@ -35,6 +35,28 @@ type RelationshipKind = "followers" | "following";
 
 const FOLLOWERS_FILE_RE = /(^|\/)followers(_\d+)?\.json$/i;
 const FOLLOWING_FILE_RE = /(^|\/)following(_\d+)?\.json$/i;
+const INSTAGRAM_HOST_RE = /(^|\.)instagram\.com$/i;
+const INSTAGRAM_USERNAME_RE = /^(?!.*\.\.)(?!\.)(?!.*\.$)[a-z0-9._]{1,30}$/i;
+const INSTAGRAM_PATH_PREFIXES = [
+  ["_u"],
+  ["accounts", "profile"],
+] as const;
+const INSTAGRAM_RESERVED_PATH_SEGMENTS = new Set([
+  "_u",
+  "accounts",
+  "challenge",
+  "developer",
+  "direct",
+  "explore",
+  "legal",
+  "p",
+  "press",
+  "privacy",
+  "reel",
+  "reels",
+  "stories",
+  "tv",
+]);
 
 function normalizePath(path: string) {
   return path.replaceAll("\\", "/").trim();
@@ -54,7 +76,52 @@ function classifyPath(path: string): RelationshipKind | null {
   return null;
 }
 
-function normalizeUsername(candidate: unknown): string | null {
+function normalizePathSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment).trim().replace(/^@+/, "");
+  } catch {
+    return segment.trim().replace(/^@+/, "");
+  }
+}
+
+function isInstagramUsernameSegment(segment: string) {
+  const normalizedSegment = segment.toLowerCase();
+
+  return (
+    INSTAGRAM_USERNAME_RE.test(segment) &&
+    !INSTAGRAM_RESERVED_PATH_SEGMENTS.has(normalizedSegment)
+  );
+}
+
+function extractInstagramUsernameFromPath(pathname: string): string | null {
+  const segments = pathname.split("/").map(normalizePathSegment).filter(Boolean);
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  for (const prefix of INSTAGRAM_PATH_PREFIXES) {
+    const hasPrefix = prefix.every(
+      (segment, index) => segments[index]?.toLowerCase() === segment,
+    );
+
+    if (!hasPrefix) {
+      continue;
+    }
+
+    const candidate = segments[prefix.length];
+    return candidate && isInstagramUsernameSegment(candidate)
+      ? candidate.toLowerCase()
+      : null;
+  }
+
+  const [firstSegment] = segments;
+  return firstSegment && isInstagramUsernameSegment(firstSegment)
+    ? firstSegment.toLowerCase()
+    : null;
+}
+
+export function normalizeInstagramUsername(candidate: unknown): string | null {
   if (typeof candidate !== "string") {
     return null;
   }
@@ -69,17 +136,41 @@ function normalizeUsername(candidate: unknown): string | null {
   if (withoutAt.includes("instagram.com")) {
     try {
       const url = new URL(withoutAt.startsWith("http") ? withoutAt : `https://${withoutAt}`);
-      const [segment] = url.pathname.split("/").filter(Boolean);
-
-      if (segment) {
-        return segment.toLowerCase();
+      if (!INSTAGRAM_HOST_RE.test(url.hostname)) {
+        return null;
       }
+
+      return extractInstagramUsernameFromPath(url.pathname);
     } catch {
       return null;
     }
   }
 
-  return withoutAt.replace(/^\/+|\/+$/g, "").toLowerCase();
+  const normalizedPath = withoutAt.replace(/^\/+|\/+$/g, "");
+
+  if (!normalizedPath) {
+    return null;
+  }
+
+  const usernameFromPath = extractInstagramUsernameFromPath(normalizedPath);
+  if (usernameFromPath) {
+    return usernameFromPath;
+  }
+
+  if (normalizedPath.includes("/")) {
+    return null;
+  }
+
+  return normalizedPath.toLowerCase();
+}
+
+export function buildInstagramProfileUrl(username: string) {
+  const normalizedUsername = normalizeInstagramUsername(username);
+  const safeUsername =
+    normalizedUsername ??
+    username.trim().replace(/^@+/, "").replace(/^\/+|\/+$/g, "").toLowerCase();
+
+  return `https://www.instagram.com/${safeUsername}/`;
 }
 
 function dedupeAccounts(accounts: FollowAccount[]) {
@@ -125,9 +216,9 @@ function extractAccountsFromPayload(payload: unknown, sourcePath: string) {
 
         const listEntry = item as Record<string, unknown>;
         const username =
-          normalizeUsername(listEntry.value) ??
-          normalizeUsername(listEntry.href) ??
-          normalizeUsername(record.title);
+          normalizeInstagramUsername(listEntry.value) ??
+          normalizeInstagramUsername(listEntry.href) ??
+          normalizeInstagramUsername(record.title);
 
         if (!username) {
           continue;
@@ -135,7 +226,7 @@ function extractAccountsFromPayload(payload: unknown, sourcePath: string) {
 
         accounts.push({
           username,
-          href: typeof listEntry.href === "string" ? listEntry.href : null,
+          href: buildInstagramProfileUrl(username),
           timestamp:
             typeof listEntry.timestamp === "number" ? listEntry.timestamp : null,
           sourcePath,

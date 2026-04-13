@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useRef, useState, useTransition } from "react";
 import {
+  buildInstagramProfileUrl,
   parseInstagramUpload,
   type FollowAccount,
   type ParseResult,
@@ -146,7 +147,7 @@ function currentList(analysis: RelationshipAnalysis | null, tab: ResultTab) {
 }
 
 function accountLink(account: FollowAccount) {
-  return account.href ?? `https://www.instagram.com/${account.username}/`;
+  return buildInstagramProfileUrl(account.username);
 }
 
 export function FollowScopeApp() {
